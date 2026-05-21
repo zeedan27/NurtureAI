@@ -78,7 +78,7 @@ export const careCards: CareCard[] = [
       { icon: '🧸', text: 'খেলনা ধরতে সাহায্য করুন', textEn: 'Help baby grasp toys' },
       { icon: '😊', text: 'হাসাহাসি করুন শিশুর সাথে', textEn: 'Smile and laugh with baby' },
       { icon: '🔄', text: 'গড়ানোর সুযোগ দিন', textEn: 'Allow rolling practice' },
-      { icon: '📖', text: ছবির বই দেখান', textEn: 'Show picture books' },
+      { icon: '📖', text: 'ছবির বই দেখান', textEn: 'Show picture books' },
       { icon: '🍽️', text: '৬ মাসের কাছাকাছি পরিপূরক খাবারের প্রস্তুতি নিন', textEn: 'Prepare for complementary foods near 6 months' },
     ],
   },
@@ -108,7 +108,7 @@ export const careCards: CareCard[] = [
     tasks: [
       { icon: '🍚', text: 'পরিবারের খাবার নরম করে দিন', textEn: 'Give soft family food' },
       { icon: '🚶', text: 'হাঁটার সুযোগ দিন', textEn: 'Allow walking practice' },
-      { icon: '📚', text: গল্পের বই পড়ুন', textEn: 'Read story books' },
+      { icon: '📚', text: 'গল্পের বই পড়ুন', textEn: 'Read story books' },
       { icon: '🎨', text: 'আঁকাআঁকি করতে দিন', textEn: 'Allow drawing' },
       { icon: '🗣️', text: 'শিশুর কথা শুনুন ও সাড়া দিন', textEn: 'Listen and respond to baby\'s words' },
       { icon: '🧩', text: 'সহজ ধাঁধা দিন', textEn: 'Give simple puzzles' },

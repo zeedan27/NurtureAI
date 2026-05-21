@@ -95,7 +95,7 @@ export const prenatalGuides: PrenatalGuide[] = [
     developmentEn: 'Baby is coconut-sized. Brain develops rapidly. Fat accumulates.',
     tips: 'প্রসবের প্রস্তুতি নিন। হাসপাতালের ঠিকানা রাখুন। শিশুর নড়াচড়া গুণুন (দিনে ১০ বারের কম হলে চিকিৎসকে দেখান)।',
     tipsEn: 'Prepare for delivery. Keep hospital address. Count baby movements (less than 10/day, see doctor).',
-    dangerSigns: ['শিশুর নড়াচড়া কমে যাওয়া', 'মাথা ঘোরা', চোখের সামনে ঝাপসা', 'হাত-পা ফোলা'],
+    dangerSigns: ['শিশুর নড়াচড়া কমে যাওয়া', 'মাথা ঘোরা', 'চোখের সামনে ঝাপসা', 'হাত-পা ফোলা'],
     dangerSignsEn: ['Reduced baby movements', 'Dizziness', 'Blurred vision', 'Swelling of hands/feet'],
     ancVisit: true,
   },

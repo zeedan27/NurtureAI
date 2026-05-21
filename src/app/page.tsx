@@ -509,7 +509,7 @@ function TriagePage() {
               <p className="text-sm">{triageState?.result}</p>
             </div>
 
-            {triageState && triageState.urgencyLevel >= 3 && (
+            {triageState && (triageState.urgencyLevel ?? 0) >= 3 && (
               <button onClick={() => setPage('facility')} className="w-full py-3 bg-orange-500 text-white rounded-2xl font-semibold hover:bg-orange-600 transition-colors">
                 🏥 {t('নিকটতম হাসপাতাল খুঁজুন', 'Find Nearest Hospital', language)}
               </button>
@@ -900,9 +900,9 @@ function FacilityPage() {
         <BackButton onClick={() => setPage('home')} label={t('হোম', 'Home', language)} />
         <PageHeader title={t('হাসপাতাল খুঁজুন', 'Find Hospital', language)} icon="🏥" />
 
-        {triageState && triageState.urgencyLevel >= 3 && (
+        {triageState && (triageState.urgencyLevel ?? 0) >= 3 && (
           <div className="mb-4">
-            <UrgencyCard level={triageState.urgencyLevel} />
+            <UrgencyCard level={triageState.urgencyLevel ?? 1} />
           </div>
         )}
 
@@ -976,7 +976,7 @@ function MythPage() {
   const { language, setPage } = useAppStore();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState(myths.slice(0, 5));
-  const [selected, setSelected] = useState<MythFact | null>(null);
+  const [selected, setSelected] = useState<typeof myths[0] | null>(null);
   const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'bot'; text: string }[]>([]);
 
   const handleSearch = () => {
