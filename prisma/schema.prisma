@@ -1,0 +1,148 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Parent {
+  id           String   @id @default(cuid())
+  phone        String   @unique
+  name         String?
+  language     String   @default("bn")
+  division     String?
+  district     String?
+  upazila      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  children     Child[]
+}
+
+model Child {
+  id            String   @id @default(cuid())
+  parentId      String
+  parent        Parent   @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  name          String
+  dateOfBirth   DateTime?
+  edd           DateTime?
+  sex           String
+  birthWeight   Float?
+  isPrenatal    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  vaccinations  Vaccination[]
+  milestones    Milestone[]
+  medicalEvents MedicalEvent[]
+  growthRecords GrowthRecord[]
+  symptomChecks SymptomCheck[]
+}
+
+model Vaccination {
+  id           String   @id @default(cuid())
+  childId      String
+  child        Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  vaccineName  String
+  dueDate      DateTime
+  receivedDate DateTime?
+  status       String   @default("upcoming")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Milestone {
+  id          String   @id @default(cuid())
+  childId     String
+  child       Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  category    String
+  description String
+  ageMonths   Int
+  completed   Boolean  @default(false)
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model MedicalEvent {
+  id          String   @id @default(cuid())
+  childId     String
+  child       Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  eventType   String
+  description String
+  date        DateTime
+  facilityId  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model GrowthRecord {
+  id        String   @id @default(cuid())
+  childId   String
+  child     Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  weight    Float?
+  height    Float?
+  muac      Float?
+  date      DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SymptomCheck {
+  id             String   @id @default(cuid())
+  childId        String
+  child          Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  symptoms       String
+  urgencyLevel   Int      @default(1)
+  ruleEngineResult String?
+  aiResult       String?
+  actionTaken    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Facility {
+  id              String   @id @default(cuid())
+  name            String
+  type            String
+  upazila         String
+  district        String
+  division        String
+  address         String?
+  phone           String?
+  bedsTotal       Int      @default(0)
+  bedsAvailable   Int      @default(0)
+  hasOxygen       Boolean  @default(false)
+  hasPediatric    Boolean  @default(false)
+  hasPower        Boolean  @default(false)
+  latitude        Float?
+  longitude       Float?
+  lastUpdated     DateTime @default(now())
+  staff           FacilityStaff[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model CommunityPost {
+  id        String   @id @default(cuid())
+  authorId  String
+  authorName String
+  authorType String  @default("parent")
+  upazila   String
+  title     String
+  content   String
+  upvotes   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FacilityStaff {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  name       String
+  facilityId String?
+  facility   Facility? @relation(fields: [facilityId], references: [id])
+  pin        String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
