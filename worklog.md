@@ -1,57 +1,24 @@
+# NurtureAI Worklog
+
 ---
 Task ID: 1
-Agent: Main Agent
-Task: Initialize fullstack project
+Agent: Main
+Task: Build NurtureAI - Child Care AI web app with mobile-optimized UI
 
 Work Log:
-- Ran fullstack init script
-- Database schema created and pushed (Parent, Child, Vaccination, Milestone, MedicalEvent, GrowthRecord, SymptomCheck, Facility, CommunityPost, FacilityStaff)
-- Project structure verified
+- Initialized Next.js project with fullstack-dev skill
+- Verified all existing data files (9 files: activities, bangladesh, care-cards, epi-schedule, facilities, milestones, myths, nutrition, prenatal)
+- Verified Zustand store with all required state management
+- Rebuilt entire page.tsx (1291 lines) with polished mobile-first UI
+- Added bottom navigation bar with 5 tabs + "More" sheet
+- Implemented IMCI-based rule engine with age-aware triage (calculateUrgency function)
+- Added WhatsApp share integration for Level 2+ triage results
+- Built all 14 pages: Onboarding, ChildProfile, HomeDashboard, Triage, Care, Nutrition, Vaccination, Learn, Facility, Myth, Community, Prenatal, History, Admin
+- Lint passes, dev server returns 200 OK
 
 Stage Summary:
-- Next.js 16 project initialized at /home/z/my-project
-- Prisma schema with 9 models pushed to SQLite
-- All shadcn/ui components available
-
----
-Task ID: 2
-Agent: Main Agent
-Task: Build data layer, store, and all pages
-
-Work Log:
-- Created bangladesh.ts (8 divisions, 55+ districts, 100+ upazilas)
-- Created epi-schedule.ts (Bangladesh EPI schedule with all vaccines)
-- Created milestones.ts (WHO developmental milestones by age group)
-- Created nutrition.ts (5 age-band guides, 6 local recipes, MUAC guide)
-- Created myths.ts (30 pre-cached myth vs fact Q&As)
-- Created facilities.ts (15 facilities across Bangladesh)
-- Created care-cards.ts (8 age-band daily care cards)
-- Created activities.ts (16 activities, 21 Bangla + 10 English flashcards, 30 fun facts)
-- Created prenatal.ts (9 prenatal guides from week 4 to 40)
-- Created Zustand app store with full state management
-- Built main page.tsx with all 14 pages:
-  1. Onboarding (language select, phone, division→district→upazila)
-  2. Child Profile Setup (name, DOB/EDD, sex, weight)
-  3. Home Dashboard (age badge, care card, vaccine due, risk check CTA)
-  4. Symptom Triage (12 icon-based symptoms → 4-level urgency card)
-  5. Daily Care & Milestones (WHO checklist, care cards)
-  6. Nutrition (age-band guide, recipes, MUAC checker)
-  7. Vaccination Tracker (EPI schedule, mark received)
-  8. Learn & Play (ABC flashcards, activities, fun facts)
-  9. Medical History (events, growth, triage logs)
-  10. Facility Finder (urgency-matched, bed/oxygen status, stale warning)
-  11. Myth vs Fact (cached chatbot, topic filters)
-  12. Community Board (sample posts, upvote)
-  13. Prenatal Module (weekly guide, danger signs, ANC reminders)
-  14. Admin Dashboard (staff login, facility toggles)
-- Created 4 API routes:
-  - /api/triage (rule engine + AI triage classification)
-  - /api/chatbot (cache-first myth/fact chatbot)
-  - /api/facility (MCP-style facility lookup tool)
-  - /api/vaccination (MCP-style vaccination schedule query tool)
-
-Stage Summary:
-- Full Child Care AI app built and compiling successfully
-- All 14 pages functional with Bangla/English bilingual support
-- Mobile-first, icon-driven design for low-literacy users
-- API routes implement MCP-style tools for hackathon scoring
+- Complete mobile-optimized NurtureAI app with Bangla/English bilingual support
+- IMCI symptom triage with 4-level urgency classification
+- Bottom nav with 5 quick-access tabs + expandable "More" menu
+- All data files pre-loaded for offline capability
+- App running at localhost:3000, returning 200 OK

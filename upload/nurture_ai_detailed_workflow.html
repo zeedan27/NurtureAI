@@ -1,0 +1,371 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.flows{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:1.1rem;padding-top:.5rem}
+.fb{padding:5px 12px;border-radius:20px;border:.5px solid var(--color-border-secondary);font-size:12px;cursor:pointer;background:transparent;color:var(--color-text-secondary);transition:all .15s}
+.fb.on{background:var(--color-text-primary);color:var(--color-background-primary);border-color:transparent}
+.step{display:flex;gap:10px;padding:11px 0}
+.step+.step{border-top:.5px solid var(--color-border-tertiary)}
+.sl{display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:24px}
+.sn{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;flex-shrink:0}
+.sline{width:1px;background:var(--color-border-tertiary);flex:1;min-height:10px;margin-top:3px}
+.sb{flex:1;min-width:0}
+.actor{display:inline-block;font-size:10px;font-weight:500;padding:1px 8px;border-radius:20px;margin-bottom:3px}
+.st{font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:3px}
+.sd{font-size:12px;color:var(--color-text-secondary);line-height:1.55}
+.note{font-size:11px;color:var(--color-text-secondary);background:var(--color-background-secondary);border-radius:4px;padding:2px 8px;margin-top:5px;display:inline-block}
+.branch{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:8px}
+.bc{border-radius:6px;padding:8px 10px}
+.bcl{font-size:11px;font-weight:500;margin-bottom:3px}
+.bcd{font-size:11px;line-height:1.45}
+</style>
+
+<div class="flows">
+  <button class="fb on" onclick="showFlow('reg',this)">Registration</button>
+  <button class="fb" onclick="showFlow('daily',this)">Daily loop</button>
+  <button class="fb" onclick="showFlow('triage',this)">Symptom triage</button>
+  <button class="fb" onclick="showFlow('vax',this)">Vaccination</button>
+  <button class="fb" onclick="showFlow('admin',this)">Facility admin</button>
+</div>
+
+<div id="reg">
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-info);color:var(--color-text-info)">1</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-info);color:var(--color-text-info)">Mother</div>
+      <div class="st">Opens PWA in mobile browser</div>
+      <div class="sd">No app store required — mother opens a URL shared by her CHW or received via SMS. Language selection appears immediately: বাংলা (default) or English. No account, no download needed to see the first screen.</div>
+      <span class="note">Service worker installs on first load — offline capable from next visit</span>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">2</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">System</div>
+      <div class="st">Phone number + OTP verification</div>
+      <div class="sd">Mother enters phone number — her own, or the CHW's if she doesn't own a phone. This is a critical rural BD decision: if a CHW's number is used, the CHW manages multiple families under one account. Supabase sends OTP. No email, no password.</div>
+      <span class="note">If CHW's phone: CHW sees a family list; each child is a separate profile</span>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-info);color:var(--color-text-info)">3</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-info);color:var(--color-text-info)">Mother / CHW</div>
+      <div class="st">Role selection</div>
+      <div class="sd">Two options shown as icon cards: Parent (single-child view, simplified UI) or Community Health Worker (multi-family batch list, additional clinical fields visible). Role determines which features and data fields appear throughout the entire app session.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-info);color:var(--color-text-info)">4</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-info);color:var(--color-text-info)">Mother</div>
+      <div class="st">Location setup via cascading dropdown</div>
+      <div class="sd">Division → District → Upazila selected from static dropdown lists. No GPS required, no live API call. This selection gates the facility database, community board content, EPI center locations, and local food suggestions shown throughout the app.</div>
+      <span class="note">100% offline — upazila location data bundled at build time</span>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-info);color:var(--color-text-info)">5</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-info);color:var(--color-text-info)">Mother / CHW</div>
+      <div class="st">Add child profile</div>
+      <div class="sd">Name, sex, and either a date of birth (existing child, postnatal modules activate) or expected due date (pregnant, prenatal module activates at -9 months). Birth weight and known conditions are optional — can be filled later or by CHW on a home visit.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">6</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">System</div>
+      <div class="st">Age auto-calculated — module routing</div>
+      <div class="sd">If EDD entered: age shown as gestational weeks, prenatal ANC guide and danger sign recognition activate. If DOB entered: age shown in weeks or months, postnatal care modules activate. At birth, when DOB is updated, profile transitions automatically from prenatal to postnatal — no manual switch.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">7</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">System</div>
+      <div class="st">Service worker pre-caches all critical content</div>
+      <div class="sd">Bangladesh EPI schedule JSON, WHO milestone data by age band, daily care content for all age groups, and the top 30 myth/fact Q&As — all cached to the device. App is now fully usable without internet for daily care, vaccination tracking, and rule-based triage.</div>
+      <span class="note">~2MB total cache — works on entry-level Android</span>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-info);color:var(--color-text-info)">8</div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-info);color:var(--color-text-info)">Mother</div>
+      <div class="st">Dashboard unlocked — all modules accessible</div>
+      <div class="sd">Personalized home screen shows child's current age badge, today's care card, next vaccine due date, and the "My child seems unwell" triage CTA. All 12 modules accessible from the bottom nav bar.</div>
+    </div>
+  </div>
+</div>
+
+<div id="daily">
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-info);color:var(--color-text-info)">1</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-info);color:var(--color-text-info)">Mother</div>
+      <div class="st">Opens app — online or offline</div>
+      <div class="sd">Dashboard loads instantly from service worker cache. If online, Supabase silently syncs any data written during the last offline session using a timestamp-based merge strategy. The mother sees no loading state either way.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">2</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">System</div>
+      <div class="st">Age recalculation + care card selection</div>
+      <div class="sd">Child's exact age recalculates from DOB on every app open. Correct age-band care card selected from cached JSON: 0–6m, 6–12m, 1–2y, 2–3y, 3–5y. Today's feeding cues, hygiene steps, and one age-appropriate stimulation activity rendered as an icon-first card.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-info);color:var(--color-text-info)">3</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-info);color:var(--color-text-info)">Mother</div>
+      <div class="st">Completes care card tasks</div>
+      <div class="sd">Taps each item on today's care card to mark done (feeding, hygiene, stimulation activity). Encouragement message shown on completion — no streaks, no failure states, no pressure for missed days. Low-anxiety design is deliberate for rural BD caregivers.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">4</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">System</div>
+      <div class="st">Vaccination badge check</div>
+      <div class="sd">EPI schedule scanned against child's current age and vaccination history. If any vaccine is due within 7 days and not yet marked received, a badge appears on the dashboard. Tapping it opens the full vaccination page for that specific vaccine.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">5</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">System</div>
+      <div class="st">WHO milestone nudge check</div>
+      <div class="sd">Milestone list checked against the child's current age band. If the child has just entered a new milestone window (e.g. turned 9 months) and the checklist has not been completed, a nudge card appears prompting the mother to run through the WHO milestone questions.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-info);color:var(--color-text-info)">6</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-info);color:var(--color-text-info)">Mother</div>
+      <div class="st">Optional: triage or myth chatbot</div>
+      <div class="sd">If the child seems unwell, mother taps "My child seems unwell" to enter the triage flow. If she has a health belief question ("Should I stop breastfeeding if I have a cold?"), she opens the Myth vs Fact chatbot from the bottom nav.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">7</div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">System</div>
+      <div class="st">Background sync when connectivity resumes</div>
+      <div class="sd">All completed care tasks, triage episodes, and chatbot sessions persisted locally via IndexedDB. When device regains internet, Supabase sync runs in the background — no prompt to the mother, no data loss from offline sessions.</div>
+    </div>
+  </div>
+</div>
+
+<div id="triage">
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-info);color:var(--color-text-info)">1</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-info);color:var(--color-text-info)">Mother</div>
+      <div class="st">Taps "My child seems unwell"</div>
+      <div class="sd">Symptom screen opens. Child's current age in weeks/months is pre-loaded — age is the most critical input for triage (a 6-week-old with fever is a Level 4; a 3-year-old with the same fever may be Level 1). No internet needed to begin.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-info);color:var(--color-text-info)">2</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-info);color:var(--color-text-info)">Mother</div>
+      <div class="st">Icon-based symptom cards — tap to select</div>
+      <div class="sd">Six large icon cards with Bangla labels: fever / cough / diarrhea / rash / not eating / breathing difficulty. Tap to select, tap again to deselect. Multiple symptoms selectable. CHW mode adds a freetext "other" field for unusual symptoms not on the list.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-warning);color:var(--color-text-warning)">3</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-warning);color:var(--color-text-warning)">Rule engine (local)</div>
+      <div class="st">WHO IMCI rule table evaluates — offline</div>
+      <div class="sd">A static IMCI-based rule table runs locally on the device. Child age + symptom combination → pre-classification. Hard rules: breathing difficulty in any age = minimum Level 3. Breathing difficulty + fever in child under 2 months = automatic Level 4. Any single danger sign → Level 3 minimum. Rule engine output is the safety floor — Claude API cannot override it downward.</div>
+      <span class="note">Fully offline — no API call at this step</span>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-warning);color:var(--color-text-warning)">4</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-warning);color:var(--color-text-warning)">Claude API</div>
+      <div class="st">Claude validates and generates Bangla explanation</div>
+      <div class="sd">If online: structured JSON (child age in weeks, symptoms array, rule engine classification) is sent to Claude via LangGraph agent. Claude validates — it may raise the urgency level if the combination warrants it, but cannot lower a rule engine Level 3 or 4. Claude generates a 2–3 sentence plain-Bangla explanation of the likely cause and the specific action the mother should take right now.</div>
+      <span class="note">If offline: rule engine output shown with pre-cached Bangla explanation text</span>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">5</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">System</div>
+      <div class="st">Urgency card rendered — 4-way action branch</div>
+      <div class="sd">Color-coded card shown in Bangla. Action content is entirely different per level:</div>
+      <div class="branch">
+        <div class="bc" style="background:var(--color-background-success)">
+          <div class="bcl" style="color:var(--color-text-success)">Level 1 — home care</div>
+          <div class="bcd" style="color:var(--color-text-success)">Step-by-step home care steps in Bangla. A relevant myth/fact tip auto-pulled from cache based on the selected symptom.</div>
+        </div>
+        <div class="bc" style="background:var(--color-background-warning)">
+          <div class="bcl" style="color:var(--color-text-warning)">Level 2 — visit CHW</div>
+          <div class="bcd" style="color:var(--color-text-warning)">Local CHW contact from upazila DB shown. One-tap generates a WhatsApp-formatted Bangla text with child age, symptoms, and urgency level to send ahead.</div>
+        </div>
+        <div class="bc" style="background:var(--color-background-info)">
+          <div class="bcl" style="color:var(--color-text-info)">Level 3 — Upazila HC</div>
+          <div class="bcd" style="color:var(--color-text-info)">Nearest UHC matched by capability (pediatric unit required). Bed count + oxygen status shown. If data is older than 24h: warning banner shown — "Call ahead to confirm."</div>
+        </div>
+        <div class="bc" style="background:var(--color-background-danger)">
+          <div class="bcl" style="color:var(--color-text-danger)">Level 4 — district/tertiary</div>
+          <div class="bcd" style="color:var(--color-text-danger)">Full referral path: UHC → District hospital → Tertiary. Emergency contact numbers. PDF report auto-generated immediately for the mother to show at the facility.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-info);color:var(--color-text-info)">6</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-info);color:var(--color-text-info)">Mother</div>
+      <div class="st">Takes action — WhatsApp share for Level 2+</div>
+      <div class="sd">For Level 2 and above, the app generates a pre-filled WhatsApp message containing child's name, age, symptoms, and urgency level. Mother taps to send to the CHW or facility so they can prepare before arrival — no verbal description needed in a crisis.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-info);color:var(--color-text-info)">7</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-info);color:var(--color-text-info)">Mother</div>
+      <div class="st">Marks episode as resolved</div>
+      <div class="sd">Mother taps "Mark as resolved" once the child is better. Optional outcome note: home care worked / visited CHW / admitted to hospital / other. This closes the episode, stops the urgency card from showing on the dashboard, and triggers logging.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">8</div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">System</div>
+      <div class="st">Episode auto-logged to medical history</div>
+      <div class="sd">Date, symptoms, urgency level, Claude explanation, action taken, and outcome note all appended to child's medical history. PDF report refreshes with the new episode. At the next facility visit, the doctor sees a complete episode log without needing a written diary from the mother.</div>
+    </div>
+  </div>
+</div>
+
+<div id="vax">
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">1</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">System</div>
+      <div class="st">Bangladesh EPI schedule loaded from DOB</div>
+      <div class="sd">Full EPI schedule pre-populated from child's date of birth: BCG at birth, Penta/PCV/OPV at 6, 10, 14 weeks, MR at 9 months, and all subsequent vaccines. No manual entry. Schedule advances automatically each time a vaccine is marked received.</div>
+      <span class="note">Fully offline — EPI JSON bundled at build time</span>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">2</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">System</div>
+      <div class="st">In-app due badge fires 7 days before</div>
+      <div class="sd">Dashboard shows "Vaccine due in 7 days" badge. Tapping opens the vaccination page showing: vaccine name in Bangla, the disease it prevents (written plainly, not medical jargon), and the nearest EPI center for this upazila from the static database.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-info);color:var(--color-text-info)">3</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-info);color:var(--color-text-info)">Mother</div>
+      <div class="st">Takes child to EPI center</div>
+      <div class="sd">Mother visits the nearest EPI center or government satellite clinic. The app's vaccination page can be shown to the health worker to confirm which specific vaccine is due. CHW may accompany for first-time or hesitant mothers.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-info);color:var(--color-text-info)">4</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-info);color:var(--color-text-info)">Mother / CHW</div>
+      <div class="st">Marks vaccine as received</div>
+      <div class="sd">Mother or CHW taps "Received" in the app. Date is auto-recorded. Optional fields visible to CHW only: lot number and batch ID for facility-level tracking. EPI schedule immediately advances — next vaccine appears as upcoming.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">5</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">System</div>
+      <div class="st">Vaccine card image generated — save to gallery</div>
+      <div class="sd">A PNG vaccine card is generated showing child's name, DOB, all received vaccines with dates, and upcoming vaccines. Mother taps "Save to gallery" — image saved to phone camera roll via Web Share API. No cloud account required. She shows this image at any future facility visit — no app needed at the facility end.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-warning);color:var(--color-text-warning)">6</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-warning);color:var(--color-text-warning)">n8n automation</div>
+      <div class="st">Next SMS reminder queued via SSL Wireless</div>
+      <div class="sd">n8n workflow calculates the next vaccine's due date from the EPI schedule. A webhook is queued to SSL Wireless Bangladesh to fire an SMS 7 days before that date — sent to the phone number registered at onboarding (mother's or CHW's). Message in Bangla, naming the specific vaccine and the nearest EPI center.</div>
+      <span class="note">Queued for retry if device is offline at time of marking received</span>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">7</div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">System</div>
+      <div class="st">Medical history updated</div>
+      <div class="sd">Vaccination record appended to child's medical history and included in the next PDF export. Full immunization timeline visible to any doctor at any future facility visit — no verbal recall needed from the mother.</div>
+    </div>
+  </div>
+</div>
+
+<div id="admin">
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-info);color:var(--color-text-info)">1</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-info);color:var(--color-text-info)">Facility staff</div>
+      <div class="st">Opens admin web URL in any browser</div>
+      <div class="sd">Completely separate URL from the parent app — no app store, no download. Works on any phone, tablet, or desktop at the facility. Staff members bookmark the URL and treat it like a daily shift tool. No IT installation needed.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">2</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">System</div>
+      <div class="st">Email + PIN authentication</div>
+      <div class="sd">Admin credentials created during facility onboarding by a district health administrator. Supabase row-level security ensures each facility account can only read and write its own facility record — no cross-facility data access possible.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-info);color:var(--color-text-info)">3</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-info);color:var(--color-text-info)">Facility staff</div>
+      <div class="st">Views current status + today's referral count</div>
+      <div class="sd">Dashboard shows: current published status (beds, oxygen, pediatric unit, power), time elapsed since last update, and today's count of Level 3/4 urgency triage cases directed here from the parent app. Referral count is aggregate only — no patient name, phone number, or PII shown.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-info);color:var(--color-text-info)">4</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-info);color:var(--color-text-info)">Facility staff</div>
+      <div class="st">Updates four availability toggles</div>
+      <div class="sd">Bed count (number input), oxygen available (yes/no), pediatric unit open (yes/no), generator/power backup (yes/no). One submit button. Designed to take under 30 seconds — simple enough for a reception clerk to run at each shift change without training.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">5</div><div class="sline"></div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">System</div>
+      <div class="st">Status published — live in parent app immediately</div>
+      <div class="sd">Supabase record updated. Any parent's Facility Finder that loads or refreshes now shows the updated bed count, oxygen status, and "Last updated X minutes ago" timestamp. No cache TTL delay — update is visible within seconds.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sl"><div class="sn" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">6</div></div>
+    <div class="sb">
+      <div class="actor" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">System</div>
+      <div class="st">24-hour stale data warning auto-fires</div>
+      <div class="sd">If a facility has not submitted any update within 24 hours, every parent-facing facility card for that facility shows a warning banner: "Status may be outdated — call ahead to confirm availability." This prevents a mother from traveling to a full hospital based on stale capacity data — a patient safety guardrail, not a soft suggestion.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var ids=['reg','daily','triage','vax','admin'];
+  ids.forEach(function(id,i){ if(i>0) document.getElementById(id).style.display='none'; });
+})();
+function showFlow(id,btn){
+  ['reg','daily','triage','vax','admin'].forEach(function(i){ document.getElementById(i).style.display='none'; });
+  document.querySelectorAll('.fb').forEach(function(b){ b.classList.remove('on'); });
+  document.getElementById(id).style.display='block';
+  btn.classList.add('on');
+}
+</script>
