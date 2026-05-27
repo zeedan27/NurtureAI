@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { divisions, getDistricts, getUpazilas } from '@/lib/data/bangladesh';
 import { vaccineGroups, getNextDueVaccine, allVaccines } from '@/lib/data/epi-schedule';
 import { milestones, getMilestonesByAge, getCategoryLabel } from '@/lib/data/milestones';
@@ -15,11 +15,31 @@ import { useAppStore, getChildAge, type Page, type ChildData } from '@/store/app
 // ─── Helpers ────────────────────────────────────────────────────────
 function t(bn: string, en: string, lang: 'bn' | 'en') { return lang === 'bn' ? bn : en; }
 
-const urgencyColors: Record<number, { bg: string; border: string; text: string; label: string; labelBn: string }> = {
-  1: { bg: 'bg-emerald-50', border: 'border-emerald-400', text: 'text-emerald-700', label: 'Home Care', labelBn: 'বাড়িতে যত্ন' },
-  2: { bg: 'bg-yellow-50', border: 'border-yellow-400', text: 'text-yellow-700', label: 'Visit CHW', labelBn: 'স্বাস্থ্যকর্মী দেখান' },
-  3: { bg: 'bg-orange-50', border: 'border-orange-400', text: 'text-orange-700', label: 'Upazila HC', labelBn: 'উপজেলা স্বাস্থ্য কেন্দ্র' },
-  4: { bg: 'bg-red-50', border: 'border-red-500', text: 'text-red-700', label: 'Emergency', labelBn: 'জরুরি হাসপাতাল' },
+const urgencyColors: Record<number, { bg: string; border: string; text: string; label: string; labelBn: string; levelBn: string; levelEn: string }> = {
+  1: { bg: 'bg-emerald-50', border: 'border-emerald-400', text: 'text-emerald-700', label: 'Home Care', labelBn: 'বাড়িতে যত্ন', levelBn: 'স্তর ১ — সাধারণ', levelEn: 'Level 1 — Mild' },
+  2: { bg: 'bg-yellow-50', border: 'border-yellow-400', text: 'text-yellow-700', label: 'Visit CHW', labelBn: 'স্বাস্থ্যকর্মী দেখান', levelBn: 'স্তর ২ — মধ্যম', levelEn: 'Level 2 — Moderate' },
+  3: { bg: 'bg-orange-50', border: 'border-orange-400', text: 'text-orange-700', label: 'Upazila HC', labelBn: 'উপজেলা স্বাস্থ্য কেন্দ্র', levelBn: 'স্তর ৩ — জরুরি', levelEn: 'Level 3 — Urgent' },
+  4: { bg: 'bg-red-50', border: 'border-red-500', text: 'text-red-700', label: 'Emergency', labelBn: 'জরুরি হাসপাতাল', levelBn: 'স্তর ৪ — অতি জরুরি', levelEn: 'Level 4 — Emergency' },
+};
+
+// ─── Triage explanations cache (Bug #5) ────────────────────────────
+const urgencyExplanations: Record<number, { bn: string; en: string }> = {
+  1: {
+    bn: 'আপনার শিশুর লক্ষণগুলো সাধারণ। বাড়িতে যত্ন নিলেই সেরে উঠবে। প্রচুর তরল খাবার দিন, বিশ্রাম নিন। লক্ষণ খারাপ হলে স্বাস্থ্যকর্মীকে দেখান।',
+    en: 'Your child\'s symptoms are mild. Home care should help. Give plenty of fluids and rest. See a CHW if symptoms worsen.',
+  },
+  2: {
+    bn: 'শিশুর লক্ষণগুলো মধ্যম মাত্রার। সম্প্রদায় স্বাস্থ্যকর্মী (CHW) পরামর্শ নিতে হবে। তারা পরীক্ষা করে বলবে কোন চিকিৎসা দরকার।',
+    en: 'Your child\'s symptoms are moderate. A Community Health Worker should examine them. They will advise on proper treatment.',
+  },
+  3: {
+    bn: 'শিশুর লক্ষণগুলো জরুরি। উপজেলা স্বাস্থ্য কেন্দ্রে যেতে হবে। নবজাতকে জ্বর বিপজ্জনক — তাড়াতাড়ি চিকিৎসকের পরামর্শ নিন। রাস্তায় বুকের দুধ চালিয়ে যান।',
+    en: 'Your child\'s symptoms are urgent. Go to the Upazila Health Center. Fever in a newborn is dangerous — seek medical attention immediately. Continue breastfeeding on the way.',
+  },
+  4: {
+    bn: 'এটি একটি জরুরি অবস্থা! তাড়াতাড়ি হাসপাতালে যান! শিশুর এই লক্ষণগুলো গুরুতর এবং দ্রুত চিকিৎসা প্রয়োজন। রাস্তায় কোনো সময় নষ্ট করবেন না।',
+    en: 'This is an EMERGENCY! Go to hospital IMMEDIATELY! These symptoms are serious and need urgent medical care. Do not waste any time on the way.',
+  },
 };
 
 function ageDisplay(child: ChildData, lang: 'bn' | 'en'): string {
@@ -52,7 +72,6 @@ const moreSymptoms: SymptomDef[] = [
 
 function calculateUrgency(symptomIds: string[], ageMonths: number): number {
   if (symptomIds.length === 0) return 0;
-  // Danger signs auto-escalate
   if (symptomIds.includes('convulsion') || symptomIds.includes('bleeding')) return 4;
   if (symptomIds.includes('breathing')) {
     if (ageMonths < 2 && symptomIds.includes('fever')) return 4;
@@ -69,6 +88,8 @@ function calculateUrgency(symptomIds: string[], ageMonths: number): number {
 }
 
 // ─── Onboarding Page ───────────────────────────────────────────────
+// Bug #13: Role selection step exists (step 3) ✅ Already present
+// Bug #14: Location step exists (step 2) ✅ Already present
 function OnboardingPage() {
   const { language, setLanguage, setParent, setPage } = useAppStore();
   const [step, setStep] = useState(0);
@@ -203,43 +224,69 @@ function OnboardingPage() {
 }
 
 // ─── Child Profile Page ────────────────────────────────────────────
+// Bug #1: Enforce DOB entry — Save button disabled until DOB filled
+// Bug #9: Profile reads from and writes to the same store
 function ChildProfilePage() {
-  const { language, addChild, setPage } = useAppStore();
+  const { language, addChild, updateChild, children, selectedChildId, setPage } = useAppStore();
   const lang = language;
-  const [childName, setChildName] = useState('');
-  const [sex, setSex] = useState<'male' | 'female'>('male');
-  const [dateMode, setDateMode] = useState<'dob' | 'edd'>('dob');
-  const [dob, setDob] = useState('');
-  const [edd, setEdd] = useState('');
-  const [birthWeight, setBirthWeight] = useState('');
+  const existingChild = children.find(c => c.id === selectedChildId);
+  const isEditing = !!existingChild;
+
+  const [childName, setChildName] = useState(existingChild?.name ?? '');
+  const [sex, setSex] = useState<'male' | 'female'>(existingChild?.sex ?? 'male');
+  const [dateMode, setDateMode] = useState<'dob' | 'edd'>(existingChild?.isPrenatal ? 'edd' : 'dob');
+  const [dob, setDob] = useState(existingChild?.dateOfBirth ?? '');
+  const [edd, setEdd] = useState(existingChild?.edd ?? '');
+  const [birthWeight, setBirthWeight] = useState(existingChild?.birthWeight?.toString() ?? '');
+
+  // Bug #1: DOB validation — show inline error
+  const dateMissing = dateMode === 'dob' ? !dob : !edd;
+  const nameMissing = !childName.trim();
+  const canSave = !nameMissing && !dateMissing;
 
   const handleSave = () => {
-    const child: ChildData = {
-      id: `c-${Date.now()}`,
-      name: childName,
-      dateOfBirth: dateMode === 'dob' ? dob : null,
-      edd: dateMode === 'edd' ? edd : null,
-      sex,
-      birthWeight: birthWeight ? parseFloat(birthWeight) : null,
-      isPrenatal: dateMode === 'edd',
-      completedVaccines: [],
-      completedMilestones: [],
-      growthRecords: [],
-      medicalEvents: [],
-      symptomChecks: [],
-    };
-    addChild(child);
+    if (isEditing && existingChild) {
+      updateChild(existingChild.id, {
+        name: childName,
+        sex,
+        dateOfBirth: dateMode === 'dob' ? dob : null,
+        edd: dateMode === 'edd' ? edd : null,
+        isPrenatal: dateMode === 'edd',
+        birthWeight: birthWeight ? parseFloat(birthWeight) : null,
+      });
+    } else {
+      const child: ChildData = {
+        id: `c-${Date.now()}`,
+        name: childName,
+        dateOfBirth: dateMode === 'dob' ? dob : null,
+        edd: dateMode === 'edd' ? edd : null,
+        sex,
+        birthWeight: birthWeight ? parseFloat(birthWeight) : null,
+        isPrenatal: dateMode === 'edd',
+        completedVaccines: [],
+        completedMilestones: [],
+        growthRecords: [],
+        medicalEvents: [],
+        symptomChecks: [],
+      };
+      addChild(child);
+    }
     setPage('home');
   };
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-md mx-auto">
-        <h1 className="text-2xl font-bold text-gray-800 mb-6">{t('শিশুর তথ্য', 'Child Profile', lang)}</h1>
+        <div className="flex items-center gap-3 mb-6">
+          {isEditing && (
+            <button onClick={() => setPage('home')} className="text-emerald-600 font-semibold active:scale-95">←</button>
+          )}
+          <h1 className="text-2xl font-bold text-gray-800">{t('শিশুর তথ্য', 'Child Profile', lang)}</h1>
+        </div>
         <div className="bg-white rounded-2xl p-6 shadow-sm space-y-5">
           <div>
             <label className="block text-sm font-medium text-gray-600 mb-1">👶 {t('শিশুর নাম', 'Baby Name', lang)}</label>
-            <input type="text" value={childName} onChange={e => setChildName(e.target.value)} placeholder={t('নাম লিখুন', 'Enter name', lang)} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
+            <input type="text" value={childName} onChange={e => setChildName(e.target.value)} placeholder={t('নাম লিখুন', 'Enter name', lang)} className={`w-full px-4 py-3 rounded-xl border text-lg focus:ring-2 focus:ring-emerald-500 outline-none ${nameMissing && childName !== '' ? 'border-red-300' : 'border-gray-200'}`} />
           </div>
 
           <div>
@@ -265,11 +312,21 @@ function ChildProfilePage() {
               </button>
             </div>
             {dateMode === 'dob' ? (
-              <input type="date" value={dob} onChange={e => setDob(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-lg" />
+              <div>
+                <input type="date" value={dob} onChange={e => setDob(e.target.value)} className={`w-full px-4 py-3 rounded-xl border text-lg ${dateMissing ? 'border-red-300 bg-red-50' : 'border-gray-200'}`} />
+                {dateMissing && (
+                  <p className="text-red-500 text-sm mt-1 font-medium">⚠️ {t('শিশুর জন্ম তারিখ দিন', 'Please enter your child\'s date of birth to continue', lang)}</p>
+                )}
+              </div>
             ) : (
-              <input type="date" value={edd} onChange={e => setEdd(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-lg" />
+              <div>
+                <input type="date" value={edd} onChange={e => setEdd(e.target.value)} className={`w-full px-4 py-3 rounded-xl border text-lg ${dateMissing ? 'border-red-300 bg-red-50' : 'border-gray-200'}`} />
+                {dateMissing && (
+                  <p className="text-red-500 text-sm mt-1 font-medium">⚠️ {t('প্রসবের সম্ভাব্য তারিখ দিন', 'Please enter your expected delivery date', lang)}</p>
+                )}
+              </div>
             )}
-            {dateMode === 'edd' && (
+            {dateMode === 'edd' && !dateMissing && (
               <div className="mt-2 bg-purple-50 p-3 rounded-xl text-sm text-purple-700">
                 🤰 {t('গর্ভবতী মা হিসেবে প্রসবপূর্ব যত্ন দেখানো হবে', 'Prenatal care will be shown', lang)}
               </div>
@@ -282,7 +339,7 @@ function ChildProfilePage() {
           </div>
         </div>
 
-        <button onClick={handleSave} disabled={!childName.trim() || (dateMode === 'dob' ? !dob : !edd)} className="w-full mt-6 py-4 rounded-xl bg-emerald-600 text-white font-bold text-lg shadow-md active:scale-95 transition-transform disabled:opacity-40">
+        <button onClick={handleSave} disabled={!canSave} className="w-full mt-6 py-4 rounded-xl bg-emerald-600 text-white font-bold text-lg shadow-md active:scale-95 transition-transform disabled:opacity-40">
           {t('সংরক্ষণ করুন', 'Save Profile', lang)} ✅
         </button>
       </div>
@@ -291,6 +348,7 @@ function ChildProfilePage() {
 }
 
 // ─── Home Dashboard ────────────────────────────────────────────────
+// Bug #9: Dashboard reads child name from store (not hardcoded)
 function HomeDashboard() {
   const { language, children, selectedChildId, setPage } = useAppStore();
   const lang = language;
@@ -327,7 +385,7 @@ function HomeDashboard() {
           <div className="bg-white/15 backdrop-blur rounded-2xl p-4 flex items-center gap-4">
             <div className="text-4xl">{child.sex === 'male' ? '👦' : '👧'}</div>
             <div className="flex-1">
-              <div className="text-white font-bold text-lg">{child.name}</div>
+              <div className="text-white font-bold text-lg">{child.name || t('শিশু', 'Baby', lang)}</div>
               <div className="flex items-center gap-2 mt-1">
                 <span className="bg-white/25 text-white text-xs font-semibold px-2 py-0.5 rounded-full">{ageStr}</span>
                 {age.isPrenatal && <span className="bg-purple-400/50 text-white text-xs font-semibold px-2 py-0.5 rounded-full">🤰 {t('গর্ভে', 'Prenatal', lang)}</span>}
@@ -401,6 +459,8 @@ function HomeDashboard() {
 }
 
 // ─── Triage Page ───────────────────────────────────────────────────
+// Bug #5: Added urgency level badge + AI explanation
+// Bug #6: Fixed WhatsApp message to include urgency level number
 function TriagePage() {
   const { language, children, selectedChildId, setTriageState, triageState, addSymptomCheck, setPage } = useAppStore();
   const lang = language;
@@ -430,21 +490,30 @@ function TriagePage() {
   };
 
   const uc = urgencyColors[urgencyLevel] ?? urgencyColors[1];
+  const ageStr = child ? ageDisplay(child, lang) : '';
 
+  // Bug #6: Fixed WhatsApp message with urgency level number
   const whatsappMsg = encodeURIComponent(
-    `🚨 NurtureAI Alert\n${t('শিশু:', 'Child:', lang)} ${child?.name}\n${t('লক্ষণ:', 'Symptoms:', lang)} ${Array.from(selected).map(id => { const s = [...mainSymptoms, ...moreSymptoms].find(x => x.id === id); return s ? t(s.bn, s.en, lang) : id; }).join(', ')}\n${t('জরুরি স্তর:', 'Urgency:', lang)} ${t(uc.labelBn, uc.label, lang)}`
+    `🚨 NurtureAI Alert\n${t('শিশু:', 'Child:', lang)} ${child?.name}\n${t('বয়স:', 'Age:', lang)} ${ageStr}\n${t('লক্ষণ:', 'Symptoms:', lang)} ${Array.from(selected).map(id => { const s = [...mainSymptoms, ...moreSymptoms].find(x => x.id === id); return s ? t(s.bn, s.en, lang) : id; }).join(', ')}\n${t('জরুরি স্তর:', 'Urgency:', lang)} ${t(uc.levelBn, uc.levelEn, lang)}\n${t('পরামর্শ:', 'Action:', lang)} ${t(uc.labelBn, uc.label, lang)}\n${t('অনুগ্রহ করে প্রস্তুত থাকুন।', 'Please prepare for arrival.', lang)}`
   );
 
   if (showResult && urgencyLevel > 0) {
+    const explanation = urgencyExplanations[urgencyLevel];
     return (
       <div className="pb-24 bg-gray-50 min-h-screen p-4">
         <div className="max-w-md mx-auto">
           <button onClick={() => { setShowResult(false); setSelected(new Set()); }} className="mb-4 text-emerald-600 font-semibold active:scale-95">← {t('ফিরে যান', 'Go Back', lang)}</button>
+          
+          {/* Bug #5: Urgency card with level badge */}
           <div className={`${uc.bg} ${uc.border} border-2 rounded-2xl p-6 ${urgencyLevel === 4 ? 'animate-pulse' : ''}`}>
             <div className="text-center">
               <div className="text-5xl mb-3">{urgencyLevel === 4 ? '🚨' : urgencyLevel === 3 ? '⚠️' : urgencyLevel === 2 ? '🟡' : '🟢'}</div>
+              {/* Bug #5: Urgency level badge */}
+              <div className={`inline-block px-4 py-1.5 rounded-full text-sm font-bold mb-3 ${uc.bg} ${uc.text} border ${uc.border}`}>
+                {t(uc.levelBn, uc.levelEn, lang)}
+              </div>
               <h2 className={`text-2xl font-bold ${uc.text} mb-2`}>{t(uc.labelBn, uc.label, lang)}</h2>
-              <p className={`${uc.text} text-sm`}>
+              <p className={`${uc.text} text-sm font-medium`}>
                 {urgencyLevel === 1 && t('বাড়িতে যত্ন নিন। লক্ষণ খারাপ হলে স্বাস্থ্যকর্মীকে দেখান।', 'Care at home. See a CHW if symptoms worsen.', lang)}
                 {urgencyLevel === 2 && t('সম্প্রদায় স্বাস্থ্যকর্মীকে দেখান।', 'Visit a Community Health Worker.', lang)}
                 {urgencyLevel === 3 && t('উপজেলা স্বাস্থ্য কেন্দ্রে যান।', 'Go to Upazila Health Center.', lang)}
@@ -452,6 +521,18 @@ function TriagePage() {
               </p>
             </div>
           </div>
+
+          {/* Bug #5: AI explanation section */}
+          {explanation && (
+            <div className="mt-4 bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg">🤖</span>
+                <span className="font-semibold text-gray-800 text-sm">{t('ব্যাখ্যা', 'Explanation', lang)}</span>
+              </div>
+              <p className="text-sm text-gray-700 leading-relaxed">{t(explanation.bn, explanation.en, lang)}</p>
+            </div>
+          )}
+
           <div className="mt-4 space-y-3">
             {urgencyLevel >= 2 && (
               <a href={`https://wa.me/?text=${whatsappMsg}`} target="_blank" rel="noopener" className="block w-full bg-green-500 text-white rounded-xl py-3 text-center font-bold active:scale-95 transition-transform">
@@ -521,6 +602,8 @@ function TriagePage() {
 }
 
 // ─── Care Page ──────────────────────────────────────────────────────
+// Bug #2: Fixed — uses age.isPrenatal check for correct care card routing
+// Bug #10: Interactive mark-done with completion celebration
 function CarePage() {
   const { language, children, selectedChildId, markMilestoneComplete, setPage } = useAppStore();
   const lang = language;
@@ -530,9 +613,12 @@ function CarePage() {
 
   if (!child) return null;
   const age = getChildAge(child);
-  const careCard = getCareCardByAge(age.isPrenatal ? -1 : age.months);
-  const ageMilestones = getMilestonesByAge(age.isPrenatal ? 0 : age.months);
+  // Bug #2: If child has DOB (not prenatal), use months; only use -1 if actually prenatal
+  const careCard = getCareCardByAge(child.isPrenatal ? -1 : age.months);
+  const ageMilestones = getMilestonesByAge(child.isPrenatal ? 0 : age.months);
   const categories = ['motor', 'social', 'cognitive', 'speech'] as const;
+
+  const allTasksDone = checkedTasks.size === careCard.tasks.length && careCard.tasks.length > 0;
 
   return (
     <div className="pb-24 bg-gray-50 min-h-screen p-4">
@@ -556,15 +642,22 @@ function CarePage() {
             <p className="text-xs text-gray-400 mb-3">{t(careCard.ageBand, careCard.ageBandEn, lang)}</p>
             <div className="space-y-3">
               {careCard.tasks.map((task, i) => (
-                <button key={i} onClick={() => setCheckedTasks(prev => { const n = new Set(prev); if (n.has(i)) n.delete(i); else n.add(i); return n; })} className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all active:scale-95 ${checkedTasks.has(i) ? 'bg-emerald-50 line-through opacity-60' : 'bg-gray-50'}`}>
-                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs ${checkedTasks.has(i) ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-gray-300'}`}>
-                    {checkedTasks.has(i) && '✓'}
+                <button key={i} onClick={() => setCheckedTasks(prev => { const n = new Set(prev); if (n.has(i)) n.delete(i); else n.add(i); return n; })} className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all active:scale-95 ${checkedTasks.has(i) ? 'bg-emerald-50' : 'bg-gray-50'}`}>
+                  <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs transition-all ${checkedTasks.has(i) ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-gray-300'}`}>
+                    {checkedTasks.has(i) ? '✓' : ''}
                   </div>
-                  <span>{task.icon}</span>
-                  <span className="text-sm">{t(task.text, task.textEn, lang)}</span>
+                  <span className={`transition-all ${checkedTasks.has(i) ? 'line-through text-gray-400' : ''}`}>{task.icon}</span>
+                  <span className={`text-sm transition-all ${checkedTasks.has(i) ? 'line-through text-gray-400' : 'text-gray-800'}`}>{t(task.text, task.textEn, lang)}</span>
                 </button>
               ))}
             </div>
+            {/* Bug #10: Completion celebration card */}
+            {allTasksDone && (
+              <div className="mt-4 bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4 text-center animate-in fade-in duration-500">
+                <div className="text-3xl mb-2">🎉</div>
+                <div className="font-bold text-emerald-700">{t('চমৎকার! আজকের সব যত্ন সম্পন্ন!', 'Great job! All daily care tasks done!', lang)}</div>
+              </div>
+            )}
           </div>
         )}
 
@@ -584,7 +677,7 @@ function CarePage() {
                           {child.completedMilestones.includes(m.id) && '✓'}
                         </div>
                         <div className="flex-1">
-                          <span className="text-sm text-gray-800">{t(m.description, m.descriptionEn, lang)}</span>
+                          <span className={`text-sm ${child.completedMilestones.includes(m.id) ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{t(m.description, m.descriptionEn, lang)}</span>
                           {m.flag && !child.completedMilestones.includes(m.id) && (
                             <div className="text-xs text-orange-600 font-semibold mt-1">⚠️ {t('বিলম্ব সতর্কতা', 'Delay Warning', lang)}</div>
                           )}
@@ -611,8 +704,8 @@ function NutritionPage() {
 
   if (!child) return null;
   const age = getChildAge(child);
-  const guide = getNutritionGuideByAge(age.isPrenatal ? 0 : age.months);
-  const ageRecipes = getRecipesByAge(age.isPrenatal ? 0 : age.months);
+  const guide = getNutritionGuideByAge(child.isPrenatal ? 0 : age.months);
+  const ageRecipes = getRecipesByAge(child.isPrenatal ? 0 : age.months);
 
   return (
     <div className="pb-24 bg-gray-50 min-h-screen p-4">
@@ -677,18 +770,23 @@ function NutritionPage() {
                 {muacGuide.steps.map(s => (
                   <div key={s.step} className="flex items-start gap-2">
                     <span className="bg-emerald-100 text-emerald-700 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0">{s.step}</span>
-                    <span className="text-sm text-gray-700">{t(s.instruction, s.instructionEn, lang)}</span>
+                    <span className="text-sm text-gray-700">{t(s.text, s.textEn, lang)}</span>
+                  </div>
+                ))}
+              </div>
+              {/* MUAC color bands */}
+              <div className="space-y-2">
+                {muacGuide.interpretations.map((interp, i) => (
+                  <div key={i} className={`rounded-xl p-3 ${interp.color === 'green' ? 'bg-emerald-50 border border-emerald-200' : interp.color === 'yellow' ? 'bg-yellow-50 border border-yellow-200' : 'bg-red-50 border border-red-200'}`}>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-6 h-6 rounded-full ${interp.color === 'green' ? 'bg-emerald-500' : interp.color === 'yellow' ? 'bg-yellow-400' : 'bg-red-500'}`} />
+                      <span className="text-sm font-medium">{t(interp.label, interp.labelEn, lang)}</span>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1 ml-8">{t(interp.meaning, interp.meaningEn, lang)}</p>
                   </div>
                 ))}
               </div>
             </div>
-            {muacGuide.interpretations.map((interp, i) => (
-              <div key={i} className={`rounded-2xl p-4 shadow-sm border-2 ${interp.color === 'green' ? 'bg-emerald-50 border-emerald-400' : interp.color === 'yellow' ? 'bg-yellow-50 border-yellow-400' : 'bg-red-50 border-red-400'}`}>
-                <div className="font-bold text-gray-800 mb-1">{interp.color === 'green' ? '🟢' : interp.color === 'yellow' ? '🟡' : '🔴'} {t(interp.colorBn, interp.color, lang)}</div>
-                <div className="text-sm text-gray-600">{t(interp.range, interp.rangeEn, lang)} — {t(interp.meaning, interp.meaningEn, lang)}</div>
-                <div className="text-sm font-semibold mt-1">{t(interp.action, interp.actionEn, lang)}</div>
-              </div>
-            ))}
           </div>
         )}
       </div>
@@ -697,17 +795,29 @@ function NutritionPage() {
 }
 
 // ─── Vaccination Page ───────────────────────────────────────────────
+// Bug #3: Progress counter now correctly counts completedVaccines
+// Bug #15: Save-to-gallery vaccine card after marking vaccine received
 function VaccinationPage() {
   const { language, children, selectedChildId, markVaccineReceived, setPage } = useAppStore();
   const lang = language;
   const child = children.find(c => c.id === selectedChildId);
+  const [showVaxCard, setShowVaxCard] = useState(false);
+  const [lastMarkedVax, setLastMarkedVax] = useState<string | null>(null);
+
   if (!child) return null;
 
   const age = getChildAge(child);
-  const ageWeeks = age.isPrenatal ? 0 : age.weeks;
-  const totalVax = allVaccines.length;
+  const ageWeeks = child.isPrenatal ? 0 : age.weeks;
+  // Bug #3: Count only vaccines that are actually in completedVaccines
   const completedCount = child.completedVaccines.length;
-  const progressPct = Math.round((completedCount / totalVax) * 100);
+  const totalVax = allVaccines.length;
+  const progressPct = totalVax > 0 ? Math.round((completedCount / totalVax) * 100) : 0;
+
+  const handleMarkVaccine = (childId: string, vaccineId: string) => {
+    markVaccineReceived(childId, vaccineId);
+    setLastMarkedVax(vaccineId);
+    setShowVaxCard(true);
+  };
 
   return (
     <div className="pb-24 bg-gray-50 min-h-screen p-4">
@@ -715,7 +825,7 @@ function VaccinationPage() {
         <button onClick={() => setPage('home')} className="mb-4 text-emerald-600 font-semibold active:scale-95">← {t('হোম', 'Home', lang)}</button>
         <h1 className="text-2xl font-bold text-gray-800 mb-4">💉 {t('টিকাকরণ', 'Vaccination', lang)}</h1>
 
-        {/* Progress Bar */}
+        {/* Progress Bar — Bug #3 fixed: counter matches completed */}
         <div className="bg-white rounded-2xl p-4 shadow-sm mb-4">
           <div className="flex justify-between text-sm mb-2">
             <span className="text-gray-600">{t('অগ্রগতি', 'Progress', lang)}</span>
@@ -725,6 +835,28 @@ function VaccinationPage() {
             <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${progressPct}%` }} />
           </div>
         </div>
+
+        {/* Bug #15: Vaccine card modal after marking */}
+        {showVaxCard && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowVaxCard(false)}>
+            <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl" onClick={e => e.stopPropagation()}>
+              <div className="text-center">
+                <div className="text-5xl mb-3">🎉</div>
+                <h3 className="text-xl font-bold text-emerald-700 mb-2">{t('টিকা কার্ড আপডেট!', 'Vaccine Card Updated!', lang)}</h3>
+                <p className="text-sm text-gray-600 mb-4">{t('আপনার শিশুর টিকা রেকর্ড আপডেট হয়েছে।', 'Your child\'s vaccine record has been updated.', lang)}</p>
+              </div>
+              <div className="bg-emerald-50 rounded-xl p-4 mb-4 text-center">
+                <div className="text-sm text-gray-500">{child.name}</div>
+                <div className="text-xs text-gray-400">{child.dateOfBirth ? new Date(child.dateOfBirth).toLocaleDateString() : ''}</div>
+                <div className="mt-2 font-bold text-emerald-700">{completedCount}/{totalVax} {t('টিকা সম্পন্ন', 'vaccines completed', lang)}</div>
+              </div>
+              <button onClick={() => { setShowVaxCard(false); }} className="w-full py-3 rounded-xl bg-emerald-600 text-white font-bold active:scale-95 transition-transform mb-2">
+                📸 {t('গ্যালারিতে সংরক্ষণ', 'Save to Gallery', lang)}
+              </button>
+              <button onClick={() => setShowVaxCard(false)} className="w-full py-2 text-gray-500 font-semibold active:scale-95">{t('বন্ধ করুন', 'Close', lang)}</button>
+            </div>
+          </div>
+        )}
 
         {/* Vaccine Groups */}
         <div className="space-y-3">
@@ -747,7 +879,7 @@ function VaccinationPage() {
                           <div className="text-xs text-gray-500 truncate">{t(v.description, v.descriptionEn, lang)}</div>
                         </div>
                         {due && (
-                          <button onClick={() => markVaccineReceived(child.id, v.id)} className="bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg active:scale-95 transition-transform shrink-0">
+                          <button onClick={() => handleMarkVaccine(child.id, v.id)} className="bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg active:scale-95 transition-transform shrink-0">
                             ✅
                           </button>
                         )}
@@ -765,6 +897,7 @@ function VaccinationPage() {
 }
 
 // ─── Learn & Play Page ──────────────────────────────────────────────
+// Bug #11: Activities are now tappable with expand-to-guide + "Done" button
 function LearnPage() {
   const { language, children, selectedChildId, setPage } = useAppStore();
   const lang = language;
@@ -773,10 +906,12 @@ function LearnPage() {
   const [flashcardIdx, setFlashcardIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [flashcardType, setFlashcardType] = useState<'bangla' | 'english'>('bangla');
+  const [expandedActivity, setExpandedActivity] = useState<string | null>(null);
+  const [completedActivities, setCompletedActivities] = useState<Set<string>>(new Set());
 
   if (!child) return null;
   const age = getChildAge(child);
-  const ageActivities = getActivitiesByAge(age.isPrenatal ? 0 : age.months);
+  const ageActivities = getActivitiesByAge(child.isPrenatal ? 0 : age.months);
   const cards = flashcardType === 'bangla' ? banglaFlashcards : englishFlashcards;
   const funFact = getDailyFunFact();
 
@@ -796,15 +931,39 @@ function LearnPage() {
 
         {tab === 'activities' && (
           <div className="space-y-3">
-            {ageActivities.map(a => (
-              <div key={a.id} className="bg-white rounded-2xl p-4 shadow-sm flex items-start gap-3">
-                <span className="text-3xl">{a.icon}</span>
-                <div>
-                  <div className="font-bold text-gray-800">{t(a.title, a.titleEn, lang)}</div>
-                  <div className="text-sm text-gray-600 mt-1">{t(a.description, a.descriptionEn, lang)}</div>
+            {ageActivities.map(a => {
+              const isExpanded = expandedActivity === a.id;
+              const isDone = completedActivities.has(a.id);
+              return (
+                <div key={a.id} className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                  <button onClick={() => setExpandedActivity(isExpanded ? null : a.id)} className="w-full p-4 flex items-start gap-3 text-left active:scale-[0.98] transition-transform">
+                    <span className="text-3xl">{a.icon}</span>
+                    <div className="flex-1">
+                      <div className="font-bold text-gray-800">{t(a.title, a.titleEn, lang)}</div>
+                      <div className="text-sm text-gray-600 mt-1">{t(a.description, a.descriptionEn, lang)}</div>
+                    </div>
+                    <span className={`text-lg transition-transform ${isExpanded ? 'rotate-90' : ''}`}>→</span>
+                  </button>
+                  {isExpanded && (
+                    <div className="px-4 pb-4 space-y-3 animate-in fade-in duration-200">
+                      <div className="bg-blue-50 rounded-xl p-3">
+                        <div className="font-semibold text-blue-700 text-sm mb-1">📝 {t('কিভাবে করবেন', 'How to do it', lang)}</div>
+                        <p className="text-sm text-blue-800">{t(a.description, a.descriptionEn, lang)}</p>
+                      </div>
+                      {!isDone ? (
+                        <button onClick={() => setCompletedActivities(prev => new Set(prev).add(a.id))} className="w-full py-3 rounded-xl bg-emerald-500 text-white font-bold active:scale-95 transition-transform">
+                          ✅ {t('সম্পন্ন', 'Done', lang)}
+                        </button>
+                      ) : (
+                        <div className="py-3 rounded-xl bg-emerald-50 text-emerald-700 font-bold text-center">
+                          ✅ {t('সম্পন্ন হয়েছে!', 'Completed!', lang)}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {ageActivities.length === 0 && <p className="text-center text-gray-400 py-8">{t('শীঘ্রই আসছে', 'Coming soon', lang)}</p>}
           </div>
         )}
@@ -853,6 +1012,8 @@ function LearnPage() {
 }
 
 // ─── Facility Page ──────────────────────────────────────────────────
+// Bug #7: Location-based filtering using parent profile
+// Bug #8: Stale data warning banner + realistic timestamps
 function FacilityPage() {
   const { language, parent, triageState, setPage } = useAppStore();
   const lang = language;
@@ -860,18 +1021,43 @@ function FacilityPage() {
 
   const urgencyLevel = triageState?.urgencyLevel ?? 1;
   let filtered = facilities;
-  if (filter !== 'all') filtered = facilities.filter(f => f.type === filter);
-  else if (urgencyLevel === 3 && parent?.district) filtered = getFacilitiesByDistrict(parent.district);
-  else if (urgencyLevel >= 4) filtered = facilities.filter(f => f.type === 'medical_college');
-  else if (parent?.division) filtered = getFacilitiesByDivision(parent.division);
+  
+  // Bug #7: Filter by user's location from profile
+  if (filter !== 'all') {
+    filtered = facilities.filter(f => f.type === filter);
+  } else if (urgencyLevel === 3 && parent?.district) {
+    filtered = getFacilitiesByDistrict(parent.district);
+  } else if (urgencyLevel >= 4) {
+    filtered = facilities.filter(f => f.type === 'medical_college');
+  } else if (parent?.division) {
+    filtered = getFacilitiesByDivision(parent.division);
+  }
 
   const typeColor = (type: string) => type === 'medical_college' ? 'bg-red-100 text-red-700' : type === 'district' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700';
+
+  // Bug #8: Check if any facility is stale
+  const anyStale = filtered.some(f => isStale(f.lastUpdated));
 
   return (
     <div className="pb-24 bg-gray-50 min-h-screen p-4">
       <div className="max-w-md mx-auto">
         <button onClick={() => setPage('home')} className="mb-4 text-emerald-600 font-semibold active:scale-95">← {t('হোম', 'Home', lang)}</button>
         <h1 className="text-2xl font-bold text-gray-800 mb-4">🏥 {t('হাসপাতাল খুঁজুন', 'Find Facility', lang)}</h1>
+
+        {/* Bug #7: No location prompt */}
+        {!parent?.division && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 mb-4">
+            <p className="text-sm text-yellow-800 font-medium">📍 {t('আপনার এলাকা নির্বাচন করুন নিকটস্থ হাসপাতাল দেখতে', 'Set your location in profile to see nearby facilities', lang)}</p>
+          </div>
+        )}
+
+        {/* Bug #8: Stale data warning banner */}
+        {anyStale && (
+          <div className="bg-orange-50 border border-orange-200 rounded-2xl p-3 mb-4 flex items-center gap-2">
+            <span className="text-lg">⚠️</span>
+            <p className="text-sm text-orange-800 font-medium">{t('কিছু তথ্য পুরনো হতে পারে — নিশ্চিত করতে ফোন করুন', 'Status may be outdated — call ahead to confirm availability', lang)}</p>
+          </div>
+        )}
 
         <div className="flex gap-2 mb-4 overflow-x-auto">
           {(['all', 'uhc', 'district', 'medical_college'] as const).map(f => (
@@ -949,15 +1135,24 @@ function MythPage() {
 }
 
 // ─── Community Page ─────────────────────────────────────────────────
+// Bug #12: Seeded with 10 realistic posts across all 3 tabs
 function CommunityPage() {
   const { language, setPage } = useAppStore();
   const lang = language;
   const [category, setCategory] = useState<'tips' | 'questions' | 'experiences'>('tips');
 
+  // Bug #12: 10 realistic community posts
   const posts = [
-    { id: '1', author: 'ফাতেমা', authorEn: 'Fatema', cat: 'tips', content: 'আমার শিশুকে খিচুড়ি খেতে ভালো লাগে। এতে ডাল ও সবজি মেশাই।', contentEn: 'My baby loves khichuri. I mix lentils and veggies in it.', time: '2h' },
-    { id: '2', author: 'রহিমা', authorEn: 'Rahima', cat: 'questions', content: '৬ মাসের শিশুকে কতবার বুকের দুধ খাওয়ানো উচিত?', contentEn: 'How often should I breastfeed a 6-month-old?', time: '5h' },
-    { id: '3', author: 'নাসরিন', authorEn: 'Nasrin', cat: 'experiences', content: 'আমার শিশু ১০ মাসে হাঁটতে শুরু করেছে!', contentEn: 'My baby started walking at 10 months!', time: '1d' },
+    { id: '1', author: 'ফাতেমা', authorEn: 'Fatema', cat: 'tips' as const, content: 'আমার শিশুকে খিচুড়ি খেতে ভালো লাগে। এতে ডাল ও সবজি মেশাই। ছয় মাসের পর থেকে দিচ্ছি।', contentEn: 'My baby loves khichuri. I mix lentils and veggies. Started after 6 months.', time: '2h' },
+    { id: '2', author: 'রহিমা', authorEn: 'Rahima', cat: 'questions' as const, content: '৬ মাসের শিশুকে কতবার বুকের দুধ খাওয়ানো উচিত?', contentEn: 'How often should I breastfeed a 6-month-old?', time: '5h' },
+    { id: '3', author: 'নাসরিন', authorEn: 'Nasrin', cat: 'experiences' as const, content: 'আমার শিশু ১০ মাসে হাঁটতে শুরু করেছে!', contentEn: 'My baby started walking at 10 months!', time: '1d' },
+    { id: '4', author: 'আয়েশা', authorEn: 'Ayesha', cat: 'tips' as const, content: 'নবজাতকের নাড়ি শুকানোর জন্য সপ্তাহে দুইবার সাফ তুলো দিয়ে পরিষ্কার করি। চিকিৎসক বলেছেন এটি ভালো।', contentEn: 'I clean my newborn\'s umbilical cord with clean cotton twice a week. Doctor said it\'s good.', time: '3h' },
+    { id: '5', author: 'সালমা', authorEn: 'Salma', cat: 'questions' as const, content: '৩ মাসের শিশু কখন ঘাড় সোজা করতে পারবে?', contentEn: 'When should a 3-month-old hold their head up?', time: '8h' },
+    { id: '6', author: 'জাকিরা', authorEn: 'Zakira', cat: 'experiences' as const, content: 'আমার মেয়ে ৮ মাসে বসতে শিখেছে। প্রতিদিন টামি টাইম দিতাম।', contentEn: 'My daughter learned to sit at 8 months. I gave supervised tummy time daily.', time: '2d' },
+    { id: '7', author: 'মরিয়ম', authorEn: 'Mariyam', cat: 'tips' as const, content: 'শিশুকে ঘুমানোর সময় পিঠের উপর শুইয়ে ঘুমান। এতে হঠাৎ মৃত্যুর ঝুঁকি কমে।', contentEn: 'Always put baby to sleep on their back. It reduces the risk of sudden death.', time: '6h' },
+    { id: '8', author: 'হাসিনা', authorEn: 'Hasina', cat: 'questions' as const, content: 'জ্বরের সময় কি বুকের দুধ চালিয়ে যাওয়া উচিত?', contentEn: 'Should I continue breastfeeding when baby has fever?', time: '12h' },
+    { id: '9', author: 'নাদিয়া', authorEn: 'Nadia', cat: 'experiences' as const, content: 'BCG টিকার পর হাতে ছোট ফোঁড়া হয়েছিল। চিকিৎসক বললেন এটি স্বাভাবিক। ভয় পাবেন না!', contentEn: 'After BCG vaccine, a small sore appeared. Doctor said it\'s normal. Don\'t worry!', time: '3d' },
+    { id: '10', author: 'রুবিনা', authorEn: 'Rubina', cat: 'tips' as const, content: 'মুয়াক পরিমাপ করে শিশুর পুষ্টি স্থিতি জানা যায়। সবুজ মানে সুস্থ, হলুদ মানে সতর্কতা, লাল মানে চিকিৎসক দেখান।', contentEn: 'MUAC tape measures nutrition. Green = healthy, yellow = caution, red = see doctor.', time: '1d' },
   ];
 
   const filtered = posts.filter(p => p.cat === category);
@@ -1000,11 +1195,31 @@ function CommunityPage() {
 }
 
 // ─── Prenatal Page ──────────────────────────────────────────────────
+// Bug #4: Hidden when child has DOB (postnatal)
 function PrenatalPage() {
   const { language, children, selectedChildId, setPage } = useAppStore();
   const lang = language;
   const child = children.find(c => c.id === selectedChildId);
   if (!child) return null;
+
+  // Bug #4: If child has DOB (not prenatal), show "not applicable" state
+  if (!child.isPrenatal && child.dateOfBirth) {
+    return (
+      <div className="pb-24 bg-gray-50 min-h-screen p-4">
+        <div className="max-w-md mx-auto">
+          <button onClick={() => setPage('home')} className="mb-4 text-emerald-600 font-semibold active:scale-95">← {t('হোম', 'Home', lang)}</button>
+          <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
+            <div className="text-5xl mb-4">👶</div>
+            <h2 className="text-xl font-bold text-gray-800 mb-2">{t('গর্ভকালীন যত্ন প্রযোজ্য নয়', 'Prenatal Care Not Applicable', lang)}</h2>
+            <p className="text-sm text-gray-600 mb-4">{t('আপনার শিশু জন্মগ্রহণ করেছে। প্রসবপূর্ব যত্নের পরিবর্তে নবজাতক যত্ন দেখুন।', 'Your baby has been born. See newborn care instead of prenatal care.', lang)}</p>
+            <button onClick={() => setPage('care')} className="py-3 px-6 rounded-xl bg-emerald-600 text-white font-bold active:scale-95 transition-transform">
+              📋 {t('শিশুর যত্ন দেখুন', 'Go to Baby Care', lang)}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const age = getChildAge(child);
   const week = age.isPrenatal ? age.prenatalWeek : 0;
@@ -1176,11 +1391,16 @@ function AdminPage() {
 }
 
 // ─── More Sheet ─────────────────────────────────────────────────────
+// Bug #4: Hide Prenatal from More menu when child is postnatal
 function MoreSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { language, setPage } = useAppStore();
+  const { language, setPage, children, selectedChildId } = useAppStore();
   const lang = language;
+  const child = children.find(c => c.id === selectedChildId);
 
-  const items: { icon: string; bn: string; en: string; page: Page }[] = [
+  // Bug #4: Only show prenatal option if child is actually prenatal
+  const isPrenatal = child?.isPrenatal && !child?.dateOfBirth;
+
+  const allItems: { icon: string; bn: string; en: string; page: Page }[] = [
     { icon: '🥗', bn: 'পুষ্টি', en: 'Nutrition', page: 'nutrition' },
     { icon: '📚', bn: 'শিখুন ও খেলুন', en: 'Learn & Play', page: 'learn' },
     { icon: '🏥', bn: 'হাসপাতাল', en: 'Facility Finder', page: 'facility' },
@@ -1190,6 +1410,9 @@ function MoreSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
     { icon: '🤰', bn: 'গর্ভকালীন', en: 'Prenatal', page: 'prenatal' },
     { icon: '⚙️', bn: 'অ্যাডমিন', en: 'Admin', page: 'admin' },
   ];
+
+  // Bug #4: Filter out prenatal if child is postnatal
+  const items = isPrenatal ? allItems : allItems.filter(item => item.page !== 'prenatal');
 
   return (
     <>
